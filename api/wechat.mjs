@@ -8,7 +8,7 @@ export async function GET(req) {
   const nonce = searchParams.get("nonce");
   const echostr = searchParams.get("echostr");
 
-  const token = "fzwl";
+  const token = "fzwltest";
   const tmpArr = [token, timestamp, nonce].sort();
   const tmpStr = crypto.createHash("sha1").update(tmpArr.join("")).digest("hex");
 
