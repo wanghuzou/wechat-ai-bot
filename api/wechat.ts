@@ -6,19 +6,17 @@ import fetch from 'node-fetch'
 
 export const config = {
   api: {
-    bodyParser: false, // 关键：关闭默认 JSON 解析，才能处理 XML
+    bodyParser: false,
   },
 }
 
-const TOKEN = 'fzwl' // 跟你微信后台一致
+const TOKEN = 'fzwl'
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!
 
-// 解析 XML 成对象
 async function parseXML(xml: string): Promise<any> {
   return await xml2js.parseStringPromise(xml, { explicitArray: false })
 }
 
-// 构造微信 XML 回复
 function buildTextReply(to: string, from: string, content: string): string {
   const now = Date.now()
   return `
@@ -38,7 +36,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method === 'POST') {
-    // 关键：微信发的是 XML，要手动收 raw 数据
     const buffers = []
     for await (const chunk of req) {
       buffers.push(chunk)
@@ -51,7 +48,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userId = msg.FromUserName
     const publicId = msg.ToUserName
 
-    // 调用 OpenRouter AI 接口
     const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
