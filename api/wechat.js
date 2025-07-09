@@ -1,70 +1,50 @@
-// api/wechat.js
+import type { VercelRequest, VercelResponse } from 'vercel';
+import crypto from 'crypto';
 
-const xml2js = require('xml2js')
-const fetch = require('node-fetch')
+// 你的 token，和测试号后台填写保持一致
+const TOKEN = 'fzwltest';
 
-module.exports.config = {
-  api: {
-    bodyParser: false,
-  },
+function checkSignature(params: { signature: string, timestamp: string, nonce: string }) {
+  const { signature, timestamp, nonce } = params;
+  const tmpArr = [TOKEN, timestamp, nonce].sort();
+  const tmpStr = crypto.createHash('sha1').update(tmpArr.join('')).digest('hex');
+  return tmpStr === signature;
 }
 
-function parseXML(xml) {
-  return xml2js.parseStringPromise(xml, { explicitArray: false })
-}
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const { signature, timestamp, nonce, echostr } = req.query as any;
 
-function buildTextReply(to, from, content) {
-  const now = Date.now()
-  return `
-    <xml>
-      <ToUserName><![CDATA[${to}]]></ToUserName>
-      <FromUserName><![CDATA[${from}]]></FromUserName>
-      <CreateTime>${now}</CreateTime>
-      <MsgType><![CDATA[text]]></MsgType>
-      <Content><![CDATA[${content}]]></Content>
-    </xml>`
-}
-
-module.exports = async function handler(req, res) {
+  // 微信服务器验证
   if (req.method === 'GET') {
-    const { echostr } = req.query
-    return res.status(200).send(echostr)
-  }
-
-  if (req.method === 'POST') {
-    const buffers = []
-    for await (const chunk of req) {
-      buffers.push(chunk)
+    if (checkSignature({ signature, timestamp, nonce })) {
+      res.status(200).send(echostr);
+    } else {
+      res.status(401).send('Invalid signature');
     }
-    const xml = Buffer.concat(buffers).toString('utf-8')
-    const parsed = await parseXML(xml)
-    const msg = parsed.xml
-
-    const userMsg = msg.Content || '你好'
-    const userId = msg.FromUserName
-    const publicId = msg.ToUserName
-
-    const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
-
-    const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-3.5-turbo',
-        messages: [{ role: 'user', content: userMsg }]
-      })
-    })
-
-    const data = await aiResponse.json()
-    const reply = data.choices?.[0]?.message?.content || '我还没学会怎么回答这个问题~'
-
-    const xmlReply = buildTextReply(userId, publicId, reply)
-    res.setHeader('Content-Type', 'application/xml')
-    return res.status(200).send(xmlReply)
+    return;
   }
 
-  res.status(200).send('OK')
+  // 接收用户消息（xml）
+  if (req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => (body += chunk));
+    req.on('end', async () => {
+      const match = body.match(/<Content><!\[CDATA\[(.*?)\]\]><\/Content>/);
+      const userMsg = match?.[1] || '你说什么？';
+
+      const reply = `
+<xml>
+  <ToUserName><![CDATA[${body.match(/<FromUserName><!$begin:math:display$CDATA\\[(.*?)$end:math:display$\]><\/FromUserName>/)?.[1]}]]></ToUserName>
+  <FromUserName><![CDATA[${body.match(/<ToUserName><!$begin:math:display$CDATA\\[(.*?)$end:math:display$\]><\/ToUserName>/)?.[1]}]]></FromUserName>
+  <CreateTime>${Math.floor(Date.now() / 1000)}</CreateTime>
+  <MsgType><![CDATA[text]]></MsgType>
+  <Content><![CDATA[你刚刚说的是：“${userMsg}”]]></Content>
+</xml>`.trim();
+
+      res.setHeader('Content-Type', 'application/xml');
+      res.status(200).send(reply);
+    });
+  } else {
+    res.status(405).send('Method Not Allowed');
+  }
 }
