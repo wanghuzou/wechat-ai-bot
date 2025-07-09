@@ -1,48 +1,45 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import crypto from 'crypto';
-import { xml2js } from 'xml-js';
+// /api/wechat.js
+import crypto from "crypto";
 
-const TOKEN = 'fzwl'; // 你的 token
+export async function GET(req) {
+  const { searchParams } = new URL(req.url);
+  const signature = searchParams.get("signature");
+  const timestamp = searchParams.get("timestamp");
+  const nonce = searchParams.get("nonce");
+  const echostr = searchParams.get("echostr");
 
-function checkSignature(query: any): boolean {
-  const { signature, timestamp, nonce } = query;
-  const tmpStr = [TOKEN, timestamp, nonce].sort().join('');
-  const hash = crypto.createHash('sha1').update(tmpStr).digest('hex');
-  return hash === signature;
+  const token = "fzwl";
+  const tmpArr = [token, timestamp, nonce].sort();
+  const tmpStr = crypto.createHash("sha1").update(tmpArr.join("")).digest("hex");
+
+  if (tmpStr === signature) {
+    return new Response(echostr);
+  } else {
+    return new Response("Invalid signature", { status: 401 });
+  }
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!checkSignature(req.query)) {
-    return res.status(401).send('Invalid signature');
-  }
+export async function POST(req) {
+  const xml = await req.text();
+  console.log("收到微信消息：", xml);
 
-  if (req.method === 'GET') {
-    return res.status(200).send(req.query.echostr);
-  }
+  // 简单解析 FromUserName 和 ToUserName（真实项目应使用 xml2js）
+  const from = xml.match(/<FromUserName><!\[CDATA\[(.*?)\]\]><\/FromUserName>/)?.[1] || "";
+  const to = xml.match(/<ToUserName><!\[CDATA\[(.*?)\]\]><\/ToUserName>/)?.[1] || "";
 
-  if (req.method === 'POST') {
-    let rawBody = '';
-    req.on('data', chunk => (rawBody += chunk));
-    req.on('end', () => {
-      const parsed = xml2js(rawBody, { compact: true }) as any;
-      const toUser = parsed.xml.FromUserName._cdata;
-      const fromUser = parsed.xml.ToUserName._cdata;
-      const content = parsed.xml.Content._cdata;
+  const response = `
+    <xml>
+      <ToUserName><![CDATA[${from}]]></ToUserName>
+      <FromUserName><![CDATA[${to}]]></FromUserName>
+      <CreateTime>${Math.floor(Date.now() / 1000)}</CreateTime>
+      <MsgType><![CDATA[text]]></MsgType>
+      <Content><![CDATA[你好，我是放着我来的AI助手！]]></Content>
+    </xml>
+  `;
 
-      const reply = `
-        <xml>
-          <ToUserName><![CDATA[${toUser}]]></ToUserName>
-          <FromUserName><![CDATA[${fromUser}]]></FromUserName>
-          <CreateTime>${Date.now()}</CreateTime>
-          <MsgType><![CDATA[text]]></MsgType>
-          <Content><![CDATA[你刚才说了：“${content}”]]></Content>
-        </xml>
-      `.trim();
-
-      res.setHeader('Content-Type', 'application/xml');
-      res.status(200).send(reply);
-    });
-  } else {
-    res.status(405).send('Method Not Allowed');
-  }
+  return new Response(response, {
+    headers: {
+      "Content-Type": "application/xml",
+    },
+  });
 }
