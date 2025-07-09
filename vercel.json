@@ -2,7 +2,7 @@
   "routes": [
     {
       "src": "/api/wechat",
-      "dest": "/api/wechat.ts"
+      "dest": "/api/wechat.js"
     }
   ]
 }
