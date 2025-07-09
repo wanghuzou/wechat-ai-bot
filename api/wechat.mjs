@@ -1,4 +1,4 @@
-// /api/wechat.js
+// /api/wechat.mjs
 import crypto from "crypto";
 
 export async function GET(req) {
