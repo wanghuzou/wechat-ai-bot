@@ -1,23 +1,19 @@
-// api/wechat.ts
+// api/wechat.js
 
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-import xml2js from 'xml2js'
-import fetch from 'node-fetch'
+const xml2js = require('xml2js')
+const fetch = require('node-fetch')
 
-export const config = {
+module.exports.config = {
   api: {
     bodyParser: false,
   },
 }
 
-const TOKEN = 'fzwl'
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY!
-
-async function parseXML(xml: string): Promise<any> {
-  return await xml2js.parseStringPromise(xml, { explicitArray: false })
+function parseXML(xml) {
+  return xml2js.parseStringPromise(xml, { explicitArray: false })
 }
 
-function buildTextReply(to: string, from: string, content: string): string {
+function buildTextReply(to, from, content) {
   const now = Date.now()
   return `
     <xml>
@@ -29,7 +25,7 @@ function buildTextReply(to: string, from: string, content: string): string {
     </xml>`
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   if (req.method === 'GET') {
     const { echostr } = req.query
     return res.status(200).send(echostr)
@@ -47,6 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userMsg = msg.Content || '你好'
     const userId = msg.FromUserName
     const publicId = msg.ToUserName
+
+    const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 
     const aiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
