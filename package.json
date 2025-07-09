@@ -1,0 +1,9 @@
+{
+  "name": "wechat-ai-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "xml2js": "^0.4.23",
+    "node-fetch": "^2.6.1"
+  }
+}
