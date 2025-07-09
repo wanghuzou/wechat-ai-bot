@@ -1,51 +1,48 @@
-const crypto = require('crypto')
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import crypto from 'crypto';
+import { xml2js } from 'xml-js';
 
-const TOKEN = 'fzwltest' // 和微信测试号填写一致
+const TOKEN = 'fzwl'; // 你的 token
 
-module.exports.config = {
-  api: {
-    bodyParser: false,
-  },
+function checkSignature(query: any): boolean {
+  const { signature, timestamp, nonce } = query;
+  const tmpStr = [TOKEN, timestamp, nonce].sort().join('');
+  const hash = crypto.createHash('sha1').update(tmpStr).digest('hex');
+  return hash === signature;
 }
 
-module.exports = async (req, res) => {
-  const { signature, timestamp, nonce, echostr } = req.query
-
-  // 处理微信 GET 验证请求
-  if (req.method === 'GET') {
-    const arr = [TOKEN, timestamp, nonce].sort()
-    const str = arr.join('')
-    const sha1 = crypto.createHash('sha1').update(str).digest('hex')
-
-    if (sha1 === signature) {
-      return res.status(200).send(echostr)
-    } else {
-      return res.status(401).send('Invalid signature')
-    }
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (!checkSignature(req.query)) {
+    return res.status(401).send('Invalid signature');
   }
 
-  // 简化的 POST 回复（后续再加 AI）
+  if (req.method === 'GET') {
+    return res.status(200).send(req.query.echostr);
+  }
+
   if (req.method === 'POST') {
-    let body = ''
-    req.on('data', chunk => (body += chunk))
+    let rawBody = '';
+    req.on('data', chunk => (rawBody += chunk));
     req.on('end', () => {
-      const contentMatch = body.match(/<Content><!\[CDATA\[(.*?)\]\]><\/Content>/)
-      const fromUser = body.match(/<FromUserName><!\[CDATA\[(.*?)\]\]><\/FromUserName>/)?.[1]
-      const toUser = body.match(/<ToUserName><!\[CDATA\[(.*?)\]\]><\/ToUserName>/)?.[1]
+      const parsed = xml2js(rawBody, { compact: true }) as any;
+      const toUser = parsed.xml.FromUserName._cdata;
+      const fromUser = parsed.xml.ToUserName._cdata;
+      const content = parsed.xml.Content._cdata;
 
       const reply = `
-<xml>
-  <ToUserName><![CDATA[${fromUser}]]></ToUserName>
-  <FromUserName><![CDATA[${toUser}]]></FromUserName>
-  <CreateTime>${Math.floor(Date.now() / 1000)}</CreateTime>
-  <MsgType><![CDATA[text]]></MsgType>
-  <Content><![CDATA[你刚刚说的是：“${contentMatch?.[1] || '空'}”]]></Content>
-</xml>`.trim()
+        <xml>
+          <ToUserName><![CDATA[${toUser}]]></ToUserName>
+          <FromUserName><![CDATA[${fromUser}]]></FromUserName>
+          <CreateTime>${Date.now()}</CreateTime>
+          <MsgType><![CDATA[text]]></MsgType>
+          <Content><![CDATA[你刚才说了：“${content}”]]></Content>
+        </xml>
+      `.trim();
 
-      res.setHeader('Content-Type', 'application/xml')
-      res.status(200).send(reply)
-    })
+      res.setHeader('Content-Type', 'application/xml');
+      res.status(200).send(reply);
+    });
   } else {
-    res.status(405).send('Method Not Allowed')
+    res.status(405).send('Method Not Allowed');
   }
 }
