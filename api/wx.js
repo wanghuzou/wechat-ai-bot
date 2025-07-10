@@ -25,24 +25,22 @@ module.exports = async (req, res) => {
     req.on("end", () => {
       const json = xml2js.xml2js(xmlData, { compact: true });
 
-      const fromUser = json.xml.FromUserName._cdata;
-      const toUser = json.xml.ToUserName._cdata;
+      const toUser = json.xml.FromUserName._cdata;
+      const fromUser = json.xml.ToUserName._cdata;
       const content = json.xml.Content._cdata;
 
-      console.log("收到微信消息：", content);
-
-      const reply = `<xml>
-        <ToUserName><![CDATA[${fromUser}]]></ToUserName>
-        <FromUserName><![CDATA[${toUser}]]></FromUserName>
-        <CreateTime>${Date.now()}</CreateTime>
-        <MsgType><![CDATA[text]]></MsgType>
-        <Content><![CDATA[你说的是：“${content}”]]></Content>
-      </xml>`;
+      const reply = `
+        <xml>
+          <ToUserName><![CDATA[${toUser}]]></ToUserName>
+          <FromUserName><![CDATA[${fromUser}]]></FromUserName>
+          <CreateTime>${Date.now()}</CreateTime>
+          <MsgType><![CDATA[text]]></MsgType>
+          <Content><![CDATA[你说的是：“${content}”]]></Content>
+        </xml>
+      `;
 
       res.setHeader("Content-Type", "application/xml");
       res.status(200).send(reply);
     });
-  } else {
-    res.status(405).send("Method Not Allowed");
   }
 };
