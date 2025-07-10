@@ -1,9 +1,9 @@
 {
   "name": "wechat-ai-bot",
   "version": "1.0.0",
-  "type": "module",
-  "scripts": {
-    "start": "vercel dev"
-  },
-  "dependencies": {}
+  "main": "index.js",
+  "type": "commonjs",
+  "dependencies": {
+    "xml-js": "^1.6.11"
+  }
 }
